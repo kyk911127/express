@@ -4,7 +4,11 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "pm2 start index.js --watch",
+    "log": "pm2 log",
+    "stop": "pm2 stop index",
+    "kill": "pm2 kill"
   },
   "author": "",
   "license": "ISC",
