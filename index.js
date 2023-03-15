@@ -1,6 +1,6 @@
 const express = require('express')
 const app = express()
-const port = 3000
+const port = 4000
 const fs = require('fs');
 const qs = require('querystring');
 const path = require('path');
@@ -15,9 +15,10 @@ const compression = require('compression')	// Third-party middleware
  * 	실행 중간에 실행되며 next() 호출을 통해 다음 미들웨어의 실행 여부를 결정함
  * 	여러개의 미들웨어를 붙여 사용할 수 있음
  */
-app.use(bodyParser.urlencoded({ extended: false }))
-app.use(compression())
-app.get('*', (req, res, next) => {	// Application-level middleware
+app.use(express.static('src'));	// 정적 이미지 처리
+app.use(bodyParser.urlencoded({ extended: false }))	// req.body 처리
+app.use(compression())	// 용량이큰 html 압축
+app.get('*', (req, res, next) => {	// Application-level middleware, 반복해서 사용하는 작업 미들웨어 처리
 	fs.readdir('./data', function(error, filelist){
 		req.list = filelist;
 		next();
@@ -40,14 +41,15 @@ app.get('/', (req, res) => {
 	const title = 'Welcome';
 	const description = 'Hello, Node.js';
 	const list = template.list(req.list);
-	const html = template.HTML(title, list,
-		`<h2>${title}</h2>${description}`,
+	const html = template.HTML(title, list, `
+		<h2>${title}</h2>${description}
+		<img src="images/cat.jpg" style="width: 300px; display: block; margin-top: 10px;" />`,
 		`<a href="/create">create</a>`
 	);
 	res.send(html);
 })
 
-app.get('/page/:pageId', (req, res) => {
+app.get('/page/:pageId', (req, res, next) => {
 	/*
 	fs.readdir('./data', function(error, filelist){
 		const filteredId = path.parse(req.params.pageId).base;
@@ -73,22 +75,26 @@ app.get('/page/:pageId', (req, res) => {
 	*/
 	const filteredId = path.parse(req.params.pageId).base;
 	fs.readFile(`data/${filteredId}`, 'utf8', function(err, description){
-		const title = req.params.pageId;
-		const sanitizedTitle = sanitizeHtml(title);
-		const sanitizedDescription = sanitizeHtml(description, {
-			allowedTags:['h1']
-		});
-		const list = template.list(req.list);
-		const html = template.HTML(sanitizedTitle, list,
-			`<h2>${sanitizedTitle}</h2>${sanitizedDescription}`, `
-			<a href="/create">create</a>
-			<a href="/update/${sanitizedTitle}">update</a>
-			<form action="/delete" method="post">
-				<input type="hidden" name="id" value="${sanitizedTitle}">
-				<input type="submit" value="delete">
-			</form>`
-		);
-		res.send(html);
+		if(err)
+			next(err);
+		else {
+			const title = req.params.pageId;
+			const sanitizedTitle = sanitizeHtml(title);
+			const sanitizedDescription = sanitizeHtml(description, {
+				allowedTags:['h1']
+			});
+			const list = template.list(req.list);
+			const html = template.HTML(sanitizedTitle, list,
+				`<h2>${sanitizedTitle}</h2>${sanitizedDescription}`, `
+				<a href="/create">create</a>
+				<a href="/update/${sanitizedTitle}">update</a>
+				<form action="/delete" method="post">
+					<input type="hidden" name="id" value="${sanitizedTitle}">
+					<input type="submit" value="delete">
+				</form>`
+			);
+			res.send(html);
+		}
 	});
 })
 
@@ -134,7 +140,6 @@ app.post('/create', (req, res) => {
 		})
 	});
 	*/
-
 	const post = req.body;
 	const title = post.title;
 	const description = post.description;
@@ -164,11 +169,11 @@ app.get('/update/:pageId', (req, res) => {
 		});
 	});
 	*/
-	var filteredId = path.parse(req.params.pageId).base;
+	const filteredId = path.parse(req.params.pageId).base;
 	fs.readFile(`data/${filteredId}`, 'utf8', function(err, description){
-		var title = req.params.pageId;
-		var list = template.list(req.list);
-		var html = template.HTML(title, list, `
+		const title = req.params.pageId;
+		const list = template.list(req.list);
+		const html = template.HTML(title, list, `
 			<form action="/update" method="post">
 				<input type="hidden" name="id" value="${title}">
 				<p><input type="text" name="title" placeholder="title" value="${title}"></p>
@@ -200,7 +205,6 @@ app.post('/update', (req, res) => {
 		});
 	});
 	*/
-
 	const post = req.body;
   	const id = post.id;
   	const title = post.title;
@@ -239,6 +243,11 @@ app.listen(port, () => {
   	console.log(`Example app listening on port ${port}`)
 })
 
-app.use(express.static('images'), (req, res) => {
+app.use((req, res, next) => {
   	res.status(404).send(errorPage.err404());
+})
+
+app.use((err, req, res, next) => {
+	console.log(err);
+  	res.status(500).send("500에러");
 })
